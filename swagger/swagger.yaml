@@ -31,8 +31,6 @@ servers:
   variables:
     port:
       default: "27123"
-- url: https://virtserver.swaggerhub.com/jimbrig/ObsidianRESTAPI/1.0.0
-  description: SwaggerHub API Auto Mocking
 security:
 - apiKeyAuth: []
 paths:
