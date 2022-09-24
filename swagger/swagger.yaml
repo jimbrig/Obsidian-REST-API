@@ -1,0 +1,1092 @@
+openapi: 3.0.2
+info:
+  title: Obsidian Local REST API
+  description: |
+    Local REST API for Obsidian:
+
+    You can use this interface for trying out your Local REST API in Obsidian.
+
+    Before trying the below tools, you will want to make sure you press the "Authorize" button below and provide the API Key you are shown when you open the "Local REST API" section of your Obsidian settings.  All requests to the API require a valid API Key; so you won't get very far without doing that.
+
+    When using this tool you may see browser security warnings due to your browser not trusting the self-signed certificate the plugin will generate on its first run.  If you do, you can make those errors disappear by adding the certificate as a "Trusted Certificate" in your browser or operating system's settings.
+  contact:
+    name: Jimmy Briggs
+    url: https://github.com/jimbrig
+    email: jimmy.briggs@jimbrig.com
+  version: 1.0.0
+servers:
+- url: "https://127.0.0.1:{port}"
+  description: HTTPS (Secure Mode)
+  variables:
+    port:
+      default: "27124"
+- url: "http://127.0.0.1:{port}"
+  description: HTTP (Insecure Mode)
+  variables:
+    port:
+      default: "27123"
+- url: https://virtserver.swaggerhub.com/jimbrig/ObsidianRESTAPI/1.0.0
+  description: SwaggerHub API Auto Mocking
+security:
+- apiKeyAuth: []
+paths:
+  /vault/{filename}:
+    get:
+      tags:
+      - Vault Files
+      summary: |
+        Return the content of a single file in your vault.
+      description: |
+        Returns the content of the file at the specified path in your vault should the file exist.
+
+        If you specify the header `Accept: application/vnd.olrapi.note+json`, will return a JSON representation of your note including parsed tag and frontmatter data as well as filesystem metadata.  See "responses" below for details.
+      parameters:
+      - name: filename
+        in: path
+        description: |
+          Path to the file to return (relative to your vault root).
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          format: path
+      responses:
+        "200":
+          description: Success
+          content:
+            text/markdown:
+              schema:
+                type: string
+                example: |
+                  # This is my document
+
+                  something else here
+            application/vnd.olrapi.note+json:
+              schema:
+                $ref: '#/components/schemas/NoteJson'
+        "404":
+          description: File does not exist
+    put:
+      tags:
+      - Vault Files
+      summary: |
+        Create a new file in your vault or update the content of an existing one.
+      description: |
+        Creates a new file in your vault or updates the content of an existing one if the specified file already exists.
+      parameters:
+      - name: filename
+        in: path
+        description: |
+          Path to the file to update (relative to your vault root).
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          format: path
+      requestBody:
+        description: Content of the file you would like to upload.
+        content:
+          text/markdown:
+            schema:
+              type: string
+              example: |
+                # This is my document
+
+                something else here
+          '*/*':
+            schema:
+              type: string
+        required: true
+      responses:
+        "204":
+          description: Success
+        "405":
+          description: |
+            Your path references a directory instead of a file; this request method is valid only for updating files.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "400":
+          description: |
+            Incoming file could not be processed.  Make sure you have specified a reasonable file name, and make sure you have set a reasonable 'Content-Type' header; if you are uploading a note, 'text/markdown' is likely the right choice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - Vault Files
+      summary: |
+        Append content to a new or existing file.
+      description: |
+        Appends content to the end of an existing note. If the specified file does not yet exist, it will be created as an empty file.
+
+        If you would like to insert text relative to a particular heading instead of appending to the end of the file, see 'patch'.
+      parameters:
+      - name: filename
+        in: path
+        description: |
+          Path to the file to alter (relative to your vault root).
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          format: path
+      requestBody:
+        description: Content you would like to append.
+        content:
+          text/markdown:
+            schema:
+              type: string
+              example: |
+                # This is my document
+
+                something else here
+        required: true
+      responses:
+        "204":
+          description: Success
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "405":
+          description: |
+            Your path references a directory instead of a file; this request method is valid only for updating files.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+      - Vault Files
+      summary: |
+        Delete a particular file in your vault.
+      parameters:
+      - name: filename
+        in: path
+        description: |
+          Path to the file to delete (relative to your vault root).
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          format: path
+      responses:
+        "204":
+          description: Success
+        "404":
+          description: File does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "405":
+          description: |
+            Your path references a directory instead of a file; this request method is valid only for updating files.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags:
+      - Vault Files
+      summary: |
+        Insert content into an existing note relative to a heading within that document.
+      description: "Inserts content into an existing note relative to a heading within\
+        \ your note.\n\nThis is useful if you have a document having multiple headings,\
+        \ and you would like to insert content below one of those headings.  For example,\
+        \ if you had the following document:\n\n```markdown\n# An important subject\n\
+        \n## Details\n\n# Another important subject\n\n## Details\n```\n\nYou could\
+        \ insert content below \"Another important subject\" by providing `Another\
+        \ important subject` in your `Heading` header.\n\nBy default, this will find\
+        \ the first heading matching the name you specify.  If your heading appears\
+        \ more than once in a document, you can control which heading is used by indicating\
+        \ parent headings with the `::` delimiter. \n\nFor example, if you would like\
+        \ your content to be inserted after the heading \"Details\" below \"Another\
+        \ important subject\" in the above document, you could provide the value `Another\
+        \ important subject::Details` in your `Heading` header.\n\nIf on the off chance\
+        \ the string \"::\" occurs in your headers, you can override the delimiter\
+        \ used for separating headers from one another via the `Heading-Boundary`\
+        \ header.\n"
+      parameters:
+      - name: filename
+        in: path
+        description: |
+          Path to the file to alter (relative to your vault root).
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          format: path
+      - name: Heading
+        in: header
+        description: |
+          Name of heading relative to which you would like your content inserted.  May be a sequence of nested headers delimited by "::".
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: Content-Insertion-Position
+        in: header
+        description: |
+          Position at which you would like your content inserted; valid options are "end" or "beginning".
+        required: false
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - end
+          - beginning
+          default: end
+      - name: Heading-Boundary
+        in: header
+        description: |
+          Set the nested header delimiter to a different value. This is useful if "::" exists in one of the headers you are attempting to use.
+        required: false
+        style: simple
+        explode: false
+        schema:
+          type: string
+          default: '::'
+      requestBody:
+        description: Content you would like to insert.
+        content:
+          text/markdown:
+            schema:
+              type: string
+              example: |
+                # This is my document
+
+                something else here
+        required: true
+      responses:
+        "200":
+          description: Success
+        "400":
+          description: Bad Request; see response message for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "405":
+          description: |
+            Your path references a directory instead of a file; this request method is valid only for updating files.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /vault/:
+    get:
+      tags:
+      - Vault Directories
+      summary: |
+        List files that exist in the root of your vault.
+      description: |
+        Lists files in the root directory of your vault.
+
+        Note: that this is exactly the same API endpoint as the below "List files that exist in the specified directory." and exists here only due to a quirk of this particular interactive tool.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+              example:
+                files:
+                - mydocument.md
+                - somedirectory/
+        "404":
+          description: Directory does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /vault/{pathToDirectory}/:
+    get:
+      tags:
+      - Vault Directories
+      summary: |
+        List files that exist in the specified directory.
+      parameters:
+      - name: pathToDirectory
+        in: path
+        description: |
+          Path to list files from (relative to your vault root).  Note that empty directories will not be returned.
+
+          Note: this particular interactive tool requires that you provide an argument for this field, but the API itself will allow you to list the root folder of your vault. If you would like to try listing content in the root of your vault using this interactive tool, use the above "List files that exist in the root of your vault" form above.
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          format: path
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+              example:
+                files:
+                - mydocument.md
+                - somedirectory/
+        "404":
+          description: Directory does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /periodic/{period}/:
+    get:
+      tags:
+      - Periodic Notes
+      summary: |
+        Get current periodic note for the specified period.
+      parameters:
+      - name: period
+        in: path
+        description: The name of the period for which you would like to grab the current
+          note.
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - daily
+          - weekly
+          - monthly
+          - quarterly
+          - yearly
+          default: daily
+      responses:
+        "200":
+          description: Success
+          content:
+            text/markdown:
+              schema:
+                type: string
+                example: |
+                  # This is my document
+
+                  something else here
+        "400":
+          description: Bad request; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Your daily note for this period does not exist or periodic
+            notes of the relevant type are not available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+      - Periodic Notes
+      summary: |
+        Update the content of a periodic note.
+      parameters:
+      - name: period
+        in: path
+        description: The name of the period for which you would like to grab the current
+          note.
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - daily
+          - weekly
+          - monthly
+          - quarterly
+          - yearly
+          default: daily
+      requestBody:
+        description: Content of the file you would like to upload.
+        content:
+          text/markdown:
+            schema:
+              type: string
+              example: |
+                # This is my document
+
+                something else here
+        required: true
+      responses:
+        "204":
+          description: Success
+          content:
+            text/markdown:
+              schema:
+                type: string
+                example: |
+                  # This is my document
+
+                  something else here
+        "400":
+          description: Bad request; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Your daily note for this period does not exist or periodic
+            notes of the relevant type are not available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - Periodic Notes
+      summary: |
+        Append content to a periodic note.
+      description: |
+        Appends content to the periodic note for the specified period.  This will create the relevant periodic note if necessary.
+      parameters:
+      - name: period
+        in: path
+        description: The name of the period for which you would like to grab the current
+          note.
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - daily
+          - weekly
+          - monthly
+          - quarterly
+          - yearly
+          default: daily
+      requestBody:
+        description: Content you would like to insert.
+        content:
+          text/markdown:
+            schema:
+              type: string
+              example: |
+                # This is my document
+
+                something else here
+        required: true
+      responses:
+        "204":
+          description: Success
+        "400":
+          description: Bad request; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: The period you selected does not exist; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+      - Periodic Notes
+      summary: |
+        Delete a periodic note.
+      description: |
+        Deletes the periodic note for the specified period.
+      parameters:
+      - name: period
+        in: path
+        description: The name of the period for which you would like to grab the current
+          note.
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - daily
+          - weekly
+          - monthly
+          - quarterly
+          - yearly
+          default: daily
+      responses:
+        "204":
+          description: Success
+        "400":
+          description: Bad request; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: The periodic note for this period or the period you selected
+            does not exist; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags:
+      - Periodic Notes
+      summary: |
+        Insert content into a periodic note relative to a heading within that document.
+      description: "Inserts content into an existing note relative to a heading within\
+        \ your note.\n\nThis is useful if you have a document having multiple headings,\
+        \ and you would like to insert content below one of those headings.  For example,\
+        \ if you had the following document:\n\n```markdown\n# An important subject\n\
+        \n## Details\n\n# Another important subject\n\n## Details\n```\n\nYou could\
+        \ insert content below \"Another important subject\" by providing `Another\
+        \ important subject` in your `Heading` header.\n\nBy default, this will find\
+        \ the first heading matching the name you specify.  If your heading appears\
+        \ more than once in a document, you can control which heading is used by indicating\
+        \ parent headings with the `::` delimiter. \n\nFor example, if you would like\
+        \ your content to be inserted after the heading \"Details\" below \"Another\
+        \ important subject\" in the above document, you could provide the value `Another\
+        \ important subject::Details` in your `Heading` header.\n\nIf on the off chance\
+        \ the string \"::\" occurs in your headers, you can override the delimiter\
+        \ used for separating headers from one another via the `Heading-Boundary`\
+        \ header.\n"
+      parameters:
+      - name: period
+        in: path
+        description: The name of the period for which you would like to grab the current
+          note.
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - daily
+          - weekly
+          - monthly
+          - quarterly
+          - yearly
+          default: daily
+      - name: Heading
+        in: header
+        description: |
+          Name of heading relative to which you would like your content inserted.  May be a sequence of nested headers delimited by "::".
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: Content-Insertion-Position
+        in: header
+        description: |
+          Position at which you would like your content inserted; valid options are "end" or "beginning".
+        required: false
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - end
+          - beginning
+          default: end
+      - name: Heading-Boundary
+        in: header
+        description: |
+          Set the nested header delimiter to a different value. This is useful if "::" exists in one of the headers you are attempting to use.
+        required: false
+        style: simple
+        explode: false
+        schema:
+          type: string
+          default: '::'
+      requestBody:
+        description: Content you would like to insert.
+        content:
+          text/markdown:
+            schema:
+              type: string
+              example: |
+                # This is my document
+
+                something else here
+        required: true
+      responses:
+        "200":
+          description: Success
+        "400":
+          description: Bad request; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: The period you selected does not exist; see response for details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /commands/:
+    get:
+      tags:
+      - Commands
+      summary: |
+        Get a list of available commands.
+      responses:
+        "200":
+          description: A list of available commands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_1'
+              example:
+                commands:
+                - id: global-search:open
+                  name: "Search: Search in all files"
+                - id: graph:open
+                  name: "Graph view: Open graph view"
+  /commands/{commandId}/:
+    post:
+      tags:
+      - Commands
+      summary: |
+        Execute a command.
+      parameters:
+      - name: commandId
+        in: path
+        description: The id of the command to execute
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Success
+        "404":
+          description: The command you specified does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /search/:
+    post:
+      tags:
+      - Search
+      summary: |
+        Search for documents matching a specified search query
+      description: |
+        Evaluates a provided query against each file in your vault,
+        returning any non-falsy results.  "Non-falsy" here treats the
+        following values as "falsy":
+
+        - `false`
+        - `null` or `undefined`
+        - `0`
+        - `[]`
+        - `{}`
+
+        Files are represented as an object having the schema described
+        in the Schema named 'NoteJson' at the bottom of this page.
+        Understanding the shape of a JSON object from a schema can be
+        tricky; so you may find it helpful to examine the generated metadata
+        for individual files in your vault to understand exactly what values
+        are returned.  To see that, access the `GET` `/vault/{filePath}`
+        route setting the header:
+        `Accept: application/vnd.olrapi.note+json`.  See examples below
+        for working examples of queries performing common search operations.
+
+        Your query should be specified in your request's body, and will
+        be interpreted according to the `Content-type` header you specify
+        following the below chart:
+
+        - `application/vnd.olrapi.jsonlogic+json`: Accepts a JsonLogic query specified as JSON.  See [JsonLogic](https://jsonlogic.com/operations.html)'s documentation for information about the base set of operators available, but in addition to those operators the following operators are available:
+          - `glob: [PATTERN, VALUE]`: Returns `true` if a string matches a glob pattern.  E.g.: `{"glob": ["*.foo", "bar.foo"]}` is `true` and `{"glob": ["*.bar", "bar.foo"]}` is `false`.
+          - `regexp: [PATTERN, VALUE]`: Returns `true` if a string matches a regular expression.  E.g.: `{"regexp": [".*\.foo", "bar.foo"]` is `true` and `{"regexp": [".*\.bar", "bar.foo"]}` is `false`.
+
+        Additional query formats may be added in the future.
+      requestBody:
+        content:
+          application/vnd.olrapi.jsonlogic+json:
+            schema:
+              type: object
+              externalDocs:
+                url: https://jsonlogic.com/operations.html
+            examples:
+              find_by_frontmatter_value:
+                summary: Find notes having a certain frontmatter field value.
+                value: |
+                  {
+                    "==": [
+                      {"var": "frontmatter.myField"},
+                      "myValue"
+                    ]
+                  }
+              find_by_frontmatter_url_glob:
+                summary: Find notes having URL or a matching URL glob frontmatter
+                  field.
+                value: |
+                  {
+                    "or": [
+                      {"===": [{"var": "frontmatter.url"}, "https://myurl.com/some/path/"]},
+                      {"glob": [{"var": "frontmatter.url-glob"}, "https://myurl.com/some/path/"]}
+                    ]
+                  }
+              find_by_tag:
+                summary: Find notes having a certain tag
+                value: |
+                  {
+                    "in": [
+                      "myTag",
+                      {"var": "tags"}
+                    ]
+                  }
+        required: true
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/inline_response_200_2'
+        "400":
+          description: |
+            Bad request.  Make sure you have specified an acceptable
+            Content-Type for your search query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /search/simple/:
+    post:
+      tags:
+      - Search
+      summary: |
+        Search for documents matching a specified text query
+      parameters:
+      - name: query
+        in: query
+        description: Your search query
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: contextLength
+        in: query
+        description: How much context to return around the matching string
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: number
+          default: 100
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/inline_response_200_3'
+  /search/gui/:
+    post:
+      tags:
+      - Search
+      summary: |
+        Search for documents matching a specified gui-evaluated query
+      description: |
+        Uses the search functionality built into the Obsidian UI to find matching files.
+
+        **Note**: Unlike most other functionality in this library, this particular method relies on interacting with the UI directly rather than interacting with your notes behind-the-scenes; so you will see the search panel open when sending requests to this API.  As far as the developers of this library are aware, this is unavoidable.
+      parameters:
+      - name: query
+        in: query
+        description: |
+          Your search query. Search options include:
+
+          - path: match the path of a file
+          - file: match file name
+          - tag: search for tags
+          - line:() search for keywords on the same line
+          - section: search for keywords under the same heading
+
+          See the search field in the Obsidian UI
+          for a better understanding of what options are available.
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: contextLength
+        in: query
+        description: How much context to return around the matching string
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: number
+          default: 100
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/inline_response_200_4'
+  /open/{filename}:
+    post:
+      tags:
+      - Open
+      summary: |
+        Open the specified document in Obsidian
+      description: |
+        Opens the specified document in Obsidian.
+
+        Note: Obsidian will create a new document at the path you have
+        specified if such a document did not already exist.
+      parameters:
+      - name: filename
+        in: path
+        description: |
+          Path to the file to return (relative to your vault root).
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          format: path
+      - name: newLeaf
+        in: query
+        description: Open this as a new leaf?
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: Success
+  /:
+    get:
+      tags:
+      - Status
+      summary: |
+        Returns basic details about the server.
+      description: |
+        Returns basic details about the server as well as your authentication status.
+
+        This is the only API request that does *not* require authentication.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_5'
+components:
+  schemas:
+    NoteJson:
+      required:
+      - content
+      - frontmatter
+      - path
+      - stat
+      - tags
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+        frontmatter:
+          type: object
+        stat:
+          $ref: '#/components/schemas/NoteJson_stat'
+        path:
+          type: string
+        content:
+          type: string
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Message describing the error.
+          example: A brief description of the error.
+        errorCode:
+          type: number
+          description: |
+            A 5-digit error code uniquely identifying this particular type of error.
+          example: 40149
+    inline_response_200:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: string
+    inline_response_200_1:
+      type: object
+      properties:
+        commands:
+          type: array
+          items:
+            $ref: '#/components/schemas/inline_response_200_1_commands'
+    inline_response_200_2:
+      required:
+      - filename
+      - result
+      type: object
+      properties:
+        filename:
+          type: string
+          description: Path to the matching file
+        result:
+          oneOf:
+          - type: string
+          - type: number
+          - type: array
+          - type: object
+          - type: boolean
+    searchsimple_match:
+      required:
+      - end
+      - start
+      type: object
+      properties:
+        start:
+          type: number
+        end:
+          type: number
+      example: null
+    searchsimple_matches:
+      required:
+      - context
+      - match
+      type: object
+      properties:
+        match:
+          $ref: '#/components/schemas/searchsimple_match'
+        context:
+          type: string
+      example: null
+    inline_response_200_3:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: Path to the matching file
+        score:
+          type: number
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/searchsimple_matches'
+    inline_response_200_4:
+      required:
+      - filename
+      type: object
+      properties:
+        filename:
+          type: string
+          description: Path to the matching file
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/searchsimple_matches'
+    inline_response_200_5:
+      type: object
+      properties:
+        ok:
+          type: string
+          description: '''OK'''
+        versions:
+          $ref: '#/components/schemas/inline_response_200_5_versions'
+        service:
+          type: string
+          description: '''Obsidian Local REST API'''
+        authenticated:
+          type: boolean
+          description: Is your current request authenticated?
+    NoteJson_stat:
+      required:
+      - ctime
+      - mtime
+      - size
+      type: object
+      properties:
+        ctime:
+          type: number
+        mtime:
+          type: number
+        size:
+          type: number
+      example: null
+    inline_response_200_1_commands:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      example: null
+    inline_response_200_5_versions:
+      type: object
+      properties:
+        obsidian:
+          type: string
+          description: Obsidian plugin API version
+        self:
+          type: string
+          description: Plugin version.
+      example: null
+  parameters:
+    period:
+      name: period
+      in: path
+      description: The name of the period for which you would like to grab the current
+        note.
+      required: true
+      style: simple
+      explode: false
+      schema:
+        type: string
+        enum:
+        - daily
+        - weekly
+        - monthly
+        - quarterly
+        - yearly
+        default: daily
+  securitySchemes:
+    apiKeyAuth:
+      type: http
+      description: |
+        Find your API Key in your Obsidian settings
+        in the "Local REST API" section under "Plugins".
+      scheme: bearer
