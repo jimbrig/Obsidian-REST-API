@@ -13,7 +13,13 @@ info:
     name: Jimmy Briggs
     url: https://github.com/jimbrig
     email: jimmy.briggs@jimbrig.com
+  license:
+    name: MIT License
+    url: https://raw.githubusercontent.com/jimbrig/Obsidian-REST-API/main/LICENSE
   version: 1.0.0
+externalDocs:
+  description: https://github.com/jimbrig/Obsidian-REST-API
+  url: https://app.swaggerhub.com/apis-docs/jimbrig/ObsidianRESTAPI/1.0.0
 servers:
 - url: "https://127.0.0.1:{port}"
   description: HTTPS (Secure Mode)
